@@ -1,0 +1,117 @@
+<html lang="en">
+ <head>
+ <meta charset="UTF-8">
+ <title>可视化音频</title>
+ <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+  <style> body {
+ display: block;
+ background: url("./8.jpg");
+ background-position: center;
+ background-repeat: no-repeat;
+ background-attachment: fixed;
+ background-size:100%;
+ }
+ </style>
+ </head>
+ <body>
+ <input type="file" style="color:red;" name="" value="" id="musicFile"><input type="button" name="startStop" value="暂停" id="startStop">
+ <p id="tip" style="color:red;"></p>
+ <canvas id="canvas"></canvas>
+  <script>
+   window.onload = function () {
+   canvas.width = window.innerWidth;
+   canvas.height = window.innerHeight;
+   var canvasCtx = canvas.getContext("2d");
+    
+   var AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
+   var audioContext = new AudioContext();//实例化
+    
+   $('#musicFile').change(function(){
+  //当选择歌曲时，判断当前audioContext的状态，如果在进行中则关闭音频环境，
+  //释放audioContext的所有资源，并重新实例化audioContext
+  if(audioContext.state == 'running'){
+   audioContext.close();
+   audioContext = new AudioContext();
+  }
+    if (this.files.length == 0) return;
+    var file = $('#musicFile')[0].files[0];
+    var fileReader = new FileReader();
+    fileReader.readAsArrayBuffer(file);
+    fileReader.onload = function(e) {
+    var count = 0;
+    $('#tip').text('开始解码')
+    var timer = setInterval(function(){
+     count++;
+     $('#tip').text('解码中,已用时'+count+'秒')
+    },1000)
+    audioContext.decodeAudioData(e.target.result, function(buffer) {
+     clearInterval(timer)
+     $('#tip').text('解码成功，用时共计:'+count+'秒')
+     var audioBufferSourceNode = audioContext.createBufferSource();
+     var analyser = audioContext.createAnalyser();
+     analyser.fftSize = 256;
+   audioBufferSourceNode.connect(analyser);
+   analyser.connect(audioContext.destination);
+   audioBufferSourceNode.buffer = buffer;
+   audioBufferSourceNode.start();
+   var bufferLength = analyser.frequencyBinCount;
+   var dataArray = new Uint8Array(bufferLength);
+ 
+   //播放暂停音频
+   startStop.onclick = function() {
+    if(audioContext.state === 'running') {
+     audioContext.suspend().then(function() {
+     $("#startStop").val('播放');
+    });
+    } else if(audioContext.state === 'suspended') {
+     audioContext.resume().then(function() {
+     $("#startStop").val('暂停');
+    }); 
+    }
+   }
+    
+   var oW = canvas.width;
+   var oH = canvas.height;
+   var color1 = canvasCtx.createLinearGradient(oW / 2, oH / 2-10, oW / 2, oH / 2 - 150);
+   var color2 = canvasCtx.createLinearGradient(oW / 2, oH / 2+10, oW / 2, oH / 2 + 150);
+   color1.addColorStop(0, '#1E90FF');
+   color1.addColorStop(.25, '#FF7F50');
+   color1.addColorStop(.5, '#8A2BE2');
+   color1.addColorStop(.75, '#4169E1');
+   color1.addColorStop(1, '#00FFFF');
+    
+   color2.addColorStop(0, '#1E90FF');
+   color2.addColorStop(.25, '#FFD700');
+   color2.addColorStop(.5, '#8A2BE2');
+   color2.addColorStop(.75, '#4169E1');
+   color2.addColorStop(1, '#FF0000');
+   function draw() {
+    drawVisual = requestAnimationFrame(draw);
+    var barHeight;
+       // 自定义获取数组里边数据的频步
+       canvasCtx.clearRect(0, 0, oW, oH);
+       for (var i = 0; i < bufferLength; i++) {
+       barHeight = dataArray[i];
+       analyser.getByteFrequencyData(dataArray);
+       // 绘制向上的线条
+    canvasCtx.fillStyle = color1; 
+    /* context.fillRect(x,y,width,height)
+     * x，y是坐标
+     * width，height线条的宽高
+     */
+    canvasCtx.fillRect(oW / 2 + (i * 8), oH / 2, 2, -barHeight);
+        canvasCtx.fillRect(oW / 2 - (i * 8), oH / 2, 2, -barHeight);
+        // 绘制向下的线条
+        canvasCtx.fillStyle = color2; 
+        canvasCtx.fillRect(oW / 2 + (i * 8), oH / 2, 2, barHeight);
+        canvasCtx.fillRect(oW / 2 - (i * 8), oH / 2, 2, barHeight);
+       }
+   };
+   draw();
+    })
+    }
+   })
+   }
+  </script>
+ </body>
+</html>
